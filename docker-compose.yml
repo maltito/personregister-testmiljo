@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  gdpr_app:
+    # -------------------------------
+    # Bygger containern från Dockerfile
+    # -------------------------------
+    build: .
+    
+    # Namn på containern (frivilligt men gör livet enklare)
+    container_name: gdpr_app
+
+    # -------------------------------
+    # Miljövariabler för databas & krypteringsnyckel
+    # -------------------------------
+    # Dessa läses i app.py för att veta var filerna ligger.
+    environment:
+      DATABASE_PATH: /data/test_users.db
+      FERNET_KEY_PATH: /data/fernet.key
+
+    # -------------------------------
+    # Volymmontering (MYCKET viktigt)
+    # -------------------------------
+    # Detta gör att databasen + krypteringsnyckeln överlever
+    # även om containern tas bort.
+    volumes:
+      - data_volume:/data
+
+    # -------------------------------
+    # Håller containern igång
+    # -------------------------------
+    # Utan denna hade containern avslutats direkt efter start.
+    tty: true
+
+# -------------------------------
+# Definierar volymen som lagras på datorn
+# -------------------------------
+# Volymen innehåller:
+# - test_users.db
+# - fernet.key
+# -------------------------------
+volumes:
+  data_volume:
