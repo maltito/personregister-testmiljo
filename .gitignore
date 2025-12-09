@@ -1,0 +1,26 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# SQLite databases
+*.db
+*.sqlite
+
+# Fernet key
+fernet.key
+
+# Data directory used by your Docker volume
+data/
+data/*
+
+# OS filer
+.DS_Store
+
+# Virtualenv
+env/
+venv/
+.env
+*.env
+
+# Docker artefakter (valfritt, men bra att ha)
+*.log

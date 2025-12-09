@@ -1,0 +1,31 @@
+name: Build and Test
+
+# Workflow ska köras vid varje push och pull request
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. Hämta koden från GitHub
+    - uses: actions/checkout@v3
+
+    # 2. Installera rätt version av Python
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    # 3. Installera beroenden från requirements.txt
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install -r requirements.txt
+
+    # 4. Testa imports + syntax
+    - name: Test imports and syntax
+      run: |
+        python -c "import sqlite3, os, faker, cryptography; print('All imports successful')"
+        python -m py_compile app.py
+        echo "Code compilation successful"
