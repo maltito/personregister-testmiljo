@@ -1,10 +1,10 @@
 # ----------------------------
 # Imports
 # ----------------------------
-# sqlite3: inbyggd modul för enkel filbaserad databas (SQLite)
+# sqlite3: inbyggd modul för enkel filbaserad databas 
 # os: för att läsa miljövariabler och filvägar
-# Faker: genererar realistiska testvärden (externt bibliotek)
-# Fernet: säker symmetrisk kryptering (externt bibliotek, del av cryptography)
+# Faker: genererar realistiska testvärden 
+# Fernet: säker kryptering (externt bibliotek, del av cryptography)
 import sqlite3
 import os
 from faker import Faker
@@ -79,11 +79,15 @@ FERNET = Fernet(load_or_create_key())
 #   för att ändra scheman säkert.
 # - Kontrollera filrättigheter för databasen så att inte obehöriga processer kan läsa den.
 def init_database():
-    # Öppna anslutning (filen skapas automatiskt om den inte finns)
-    conn = sqlite3.connect(get_db_path())
+    """
+    Skapar databasen och återställer ALLTID samma testdata.
+    Detta säkerställer reproducerbar testmiljö.
+    """
+    db_path = os.getenv("DATABASE_PATH", "/data/test_users.db")
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    # Skapa tabell om den inte redan finns; columns: id, name, email
+    # Skapa tabell
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,22 +96,20 @@ def init_database():
         )
     """)
 
-    # Kolla om tabellen redan innehåller rader
-    cursor.execute("SELECT COUNT(*) FROM users")
-    count = cursor.fetchone()[0]
+    # Rensa tabellen varje gång (testmiljö!)
+    cursor.execute("DELETE FROM users")
 
-    # Om tabellen är tom: lägg in två exempelrader för att ha något att jobba med
-    if count == 0:
-        cursor.executemany(
-            "INSERT INTO users (name, email) VALUES (?, ?)",
-            [
-                ("Anders Andersson", "anders@test.se"),
-                ("Erik Eriksson", "erik@test.se"),
-            ]
-        )
-        print("Database initialized with test users.")
+    # Lägg in fasta testanvändare
+    users = [
+        ("Anna Andersson", "anna@test.se"),
+        ("Bo Bengtsson", "bo@test.se")
+    ]
 
-    # Skriv ändringar till fil (commit) och stäng anslutningen
+    cursor.executemany(
+        "INSERT INTO users (name, email) VALUES (?, ?)",
+        users
+    )
+
     conn.commit()
     conn.close()
 
@@ -239,21 +241,18 @@ def decrypt_and_print_emails():
 # Detta är ett enkelt demo-flöde; i en riktig app hade man exponerat
 # detta via CLI-argument, endpoints eller separata scripts.
 if __name__ == "__main__":
-    # Initiera DB (skapar fil och tabell om nödvändigt)
     init_database()
 
-    # Visa ursprungliga användare inför GDPR-åtgärderna
-    print("Initial state:")
+    print("Initial state:\n")
     display_users()
 
-    # Kör anonymisering först (ersätter med falska värden)
-    # Notera att om vi krypterar först blir anonymiseringen svårare (då e-post inte är i klartext).
-    # Här gör vi anonymisering först för att demonstrera båda teknikerna tydligt.
     anonymize_users()
-
-    # Kryptera (efter anonymisering krypteras de fake-e-post som skapats)
     encrypt_emails()
 
-    # Visa uppdaterad state — observera att e-post nu är krypterad text
-    print("After anonymization + encryption:")
+    print("After anonymization + encryption:\n")
     display_users()
+
+    import time
+    print("Container is running. Press Ctrl+C to exit.")
+    while True:
+        time.sleep(1)
