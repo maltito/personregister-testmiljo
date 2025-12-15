@@ -9,6 +9,7 @@ import sqlite3
 import os
 from faker import Faker
 from cryptography.fernet import Fernet
+import time
 
 # Instans av Faker — används för att skapa realistiska men påhittade namn och e-post
 # Att använda en instans istället för att anropa Faker() överallt gör koden renare.
@@ -120,17 +121,20 @@ def init_database():
 # display_users() skriver ut alla rader i users-tabellen till stdout. Denna funktion
 # är praktisk för lokala tester och demonstration.
 def display_users():
-    conn = sqlite3.connect(get_db_path())
+    """
+    Skriver ut alla användare i databasen.
+    Används för att verifiera att GDPR-åtgärder fått effekt.
+    """
+    db_path = os.getenv("DATABASE_PATH", "/data/test_users.db")
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM users")
-    rows = cursor.fetchall()
+    cursor.execute("SELECT id, name, email FROM users")
+    users = cursor.fetchall()
 
-    # Tydlig utskrift så man ser vad som finns i databasen
     print("\n--- Current users in DB ---")
-    for row in rows:
-        # row[0] = id, row[1] = name, row[2] = email
-        print(f"ID: {row[0]}, Name: {row[1]}, Email: {row[2]}")
+    for user in users:
+        print(f"ID: {user[0]}, Name: {user[1]}, Email: {user[2]}")
     print("--- End of list ---\n")
 
     conn.close()
@@ -152,17 +156,21 @@ def display_users():
 #   I detta enkla exempel ersätter vi fälten direkt i DB. I vissa scenarier vill
 #   man istället skapa kopior för test och bevara originalen på säkert vis.
 def anonymize_users():
-    conn = sqlite3.connect(get_db_path())
+    """
+    GDPR-åtgärd: Anonymiserar alla användare
+    genom att ersätta namn och e-post med Faker-data.
+    """
+    fake = Faker()
+    db_path = os.getenv("DATABASE_PATH", "/data/test_users.db")
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    # Hämta alla användar-id så vi kan uppdatera varje post individuellt
     cursor.execute("SELECT id FROM users")
-    ids = [r[0] for r in cursor.fetchall()]
+    user_ids = cursor.fetchall()
 
-    # Uppdatera varje användare med ny fake-name och fake-email
-    for user_id in ids:
-        fake_name = fake.name()   # t.ex. "Erik Johansson"
-        fake_email = fake.email() # t.ex. "erik.johansson@example.com"
+    for (user_id,) in user_ids:
+        fake_name = fake.name()
+        fake_email = fake.email()
         cursor.execute(
             "UPDATE users SET name = ?, email = ? WHERE id = ?",
             (fake_name, fake_email, user_id)
@@ -170,7 +178,10 @@ def anonymize_users():
 
     conn.commit()
     conn.close()
-    print("All users anonymized (names and emails replaced with Faker values).")
+
+    print("✔ Users anonymized successfully.")
+    display_users()
+    
 
 
 # ----------------------------
@@ -187,23 +198,29 @@ def anonymize_users():
 #   Det är ofta bättre att lägga krypterade fält i separata kolumner med metadata
 #   (t.ex. algoritm-version, initialization vector osv.). Fernet hanterar det mesta inbyggt.
 def encrypt_emails():
-    conn = sqlite3.connect(get_db_path())
+    """
+    GDPR-åtgärd: Krypterar alla e-postadresser i databasen.
+    """
+    db_path = get_db_path()
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    # Hämta id + nuvarande email
     cursor.execute("SELECT id, email FROM users")
-    rows = cursor.fetchall()
+    users = cursor.fetchall()
 
-    # Kryptera varje e-postadress och skriv tillbaka
-    for user_id, email in rows:
-        # Kryptera: fernet.encrypt returnerar bytes — konvertera till str för att lagra i DB
-        encrypted_bytes = FERNET.encrypt(email.encode())
-        encrypted_str = encrypted_bytes.decode()  # t.ex. 'gAAAAAB...'
-        cursor.execute("UPDATE users SET email = ? WHERE id = ?", (encrypted_str, user_id))
+    for user_id, email in users:
+        encrypted_email = FERNET.encrypt(email.encode()).decode()
+        cursor.execute(
+            "UPDATE users SET email = ? WHERE id = ?",
+            (encrypted_email, user_id)
+        )
 
     conn.commit()
     conn.close()
-    print("All emails encrypted in database.")
+
+    print("✔ Emails encrypted successfully.")
+    display_users()
+
 
 
 # ----------------------------
@@ -213,24 +230,25 @@ def encrypt_emails():
 # Denna funktion bör **endast** användas i säkra testmiljöer — exponera aldrig
 # dekrypterade personuppgifter i loggar i produktion.
 def decrypt_and_print_emails():
-    conn = sqlite3.connect(get_db_path())
+    """
+    Dekrypterar och skriver ut e-postadresser
+    utan att ändra databasen.
+    """
+    db_path = get_db_path()
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
     cursor.execute("SELECT id, email FROM users")
-    rows = cursor.fetchall()
+    users = cursor.fetchall()
 
-    print("\n--- Decrypted emails (for test only) ---")
-    for user_id, possibly_encrypted in rows:
-        try:
-            # Försök dekryptera — om värdet inte är krypterat kommer Fernet att kasta
-            decrypted = FERNET.decrypt(possibly_encrypted.encode()).decode()
-            print(f"ID {user_id}: {decrypted}")
-        except Exception:
-            # Om dekryptering misslyckas antar vi att värdet inte var krypterat
-            print(f"ID {user_id}: (not encrypted or invalid token) -> stored value: {possibly_encrypted}")
-    print("--- End ---\n")
+    print("\n--- Decrypted emails ---")
+    for user_id, encrypted_email in users:
+        decrypted_email = FERNET.decrypt(encrypted_email.encode()).decode()
+        print(f"User ID {user_id}: {decrypted_email}")
 
+    print("--- End of list ---\n")
     conn.close()
+
 
 
 # ----------------------------
@@ -241,18 +259,27 @@ def decrypt_and_print_emails():
 # Detta är ett enkelt demo-flöde; i en riktig app hade man exponerat
 # detta via CLI-argument, endpoints eller separata scripts.
 if __name__ == "__main__":
+    # Initiera databasen med fasta testanvändare
     init_database()
 
-    print("Initial state:\n")
-    display_users()
-
-    anonymize_users()
-    encrypt_emails()
-
-    print("After anonymization + encryption:\n")
-    display_users()
-
-    import time
+    print("GDPR testmiljö startad.")
+    print("Använd docker exec för att köra kommandon.")
+    print("")
+    print("Exempel:")
+    print("docker exec gdpr_app python -c \"import app; app.display_users()\"")
+    print("docker exec gdpr_app python -c \"import app; app.anonymize_users()\"")
+    print("docker exec gdpr_app python -c \"import app; app.encrypt_emails()\"")
+    print("docker exec gdpr_app python -c \"import app; app.decrypt_and_print_emails()\"")
+    print("")
     print("Container is running. Press Ctrl+C to exit.")
+
+    # Håll containern igång
     while True:
         time.sleep(1)
+
+
+
+
+
+
+

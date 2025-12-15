@@ -62,34 +62,29 @@ Visar nuvarande data i databasen.
 cd "C:\Users\malte\OneDrive\Dokument\GitHub\personregister-testmiljo"
 
 2. Bygg och starta containern:
-docker-compose up --build
+docker-compose up --build -d
 
 
 Containern håller sig igång tack vare en "keep-alive"-loop i app.py.
 
-3. Kontrollera att containern körs:
-docker ps
+3. Testa kommandon:
 
-
-Du ska se:
-
-gdpr_app   Up ...
 
 🧪 GDPR-kommandon (körs i container)
 🔹 Visa nuvarande användare
 docker exec gdpr_app python -c "import app; app.display_users()"
 
 🔹 Anonymisera all data
-docker exec gdpr_app python -c "import app; app.anonymize_users(); app.display_users()"
+docker exec gdpr_app python -c "import app; app.anonymize_users()"
 
 🔹 Kryptera e-postadresser
-docker exec gdpr_app python -c "import app; app.encrypt_emails(); app.display_users()"
+docker exec gdpr_app python -c "import app; app.encrypt_emails()"
 
 🔹 Dekryptera e-post (för testning)
 docker exec gdpr_app python -c "import app; app.decrypt_and_print_emails()"
 
 🔹 Återställ databasen till ursprungsdata
-docker exec gdpr_app python -c "import app; app.init_database(); app.display_users()"
+docker exec gdpr_app python -c "import app; app.init_database()"
 
 🔐 GDPR-åtgärder som implementeras
 Åtgärd	Implementering
