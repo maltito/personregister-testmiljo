@@ -221,6 +221,45 @@ def encrypt_emails():
     print("✔ Emails encrypted successfully.")
     display_users()
 
+def test_email_encryption():
+    """
+    Enkel testfunktion som kontrollerar att
+    e-postadresser SER krypterade ut.
+
+    Regler:
+    - Får INTE innehålla '@'
+    - Ska innehålla '=' (typiskt för Fernet/Base64)
+    """
+
+    db_path = os.getenv("DATABASE_PATH", "/data/test_users.db")
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT id, email FROM users")
+    users = cursor.fetchall()
+
+    print("\n--- Encryption test ---")
+
+    all_ok = True
+
+    for user_id, email in users:
+        if "@" in email:
+            print(f"❌ User {user_id}: FAIL (contains @)")
+            all_ok = False
+        elif "=" not in email:
+            print(f"❌ User {user_id}: FAIL (missing '=')")
+            all_ok = False
+        else:
+            print(f"✔ User {user_id}: OK (looks encrypted)")
+
+    if all_ok:
+        print("\n✅ Encryption test PASSED.")
+    else:
+        print("\n❌ Encryption test FAILED.")
+
+    print("--- End of test ---\n")
+
+    conn.close()
 
 
 # ----------------------------
@@ -254,10 +293,7 @@ def decrypt_and_print_emails():
 # ----------------------------
 # Huvudlöpare (körs när filen startas direkt)
 # ----------------------------
-# I detta exempel körs init_database(), vi skriver ut initialt innehåll,
-# kör anonymisering + kryptering och visar slutresultat.
-# Detta är ett enkelt demo-flöde; i en riktig app hade man exponerat
-# detta via CLI-argument, endpoints eller separata scripts.
+# I detta exempel körs init_database(), vi skriver ut initialt innehåll
 if __name__ == "__main__":
     # Initiera databasen med fasta testanvändare
     init_database()
